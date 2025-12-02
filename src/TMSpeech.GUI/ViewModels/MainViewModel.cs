@@ -136,6 +136,9 @@ public class MainViewModel : ViewModelBase
         [Reactive]
         public bool IsTranslationEnabled { get; set; } = false;
         
+        [Reactive]
+        public bool IsTranslationApiAvailable { get; set; } = true;
+        
         [ObservableAsProperty]
         public bool IsTranslationButtonEnabled { get; }
         
@@ -163,9 +166,9 @@ public class MainViewModel : ViewModelBase
                 .ObserveOn(RxApp.MainThreadScheduler)
                 .ToPropertyEx(this, x => x.Status);
             
-            // 绑定翻译按钮可用性：只有在实时字幕运行或暂停时才能使用翻译按钮
-            this.WhenAnyValue(x => x.Status)
-                .Select(status => status == JobStatus.Running || status == JobStatus.Paused)
+            // 绑定翻译按钮可用性：只有在实时字幕运行或暂停且翻译API可用时才能使用翻译按钮
+            this.WhenAnyValue(x => x.Status, x => x.IsTranslationApiAvailable)
+                .Select(tuple => (tuple.Item1 == JobStatus.Running || tuple.Item1 == JobStatus.Paused) && tuple.Item2)
                 .ToPropertyEx(this, x => x.IsTranslationButtonEnabled);
 
             this.WhenAnyValue(x => x.Status) // IObservable<JobStatus>
@@ -225,15 +228,27 @@ public class MainViewModel : ViewModelBase
             .Select(x => string.Format("{0:D2}:{1:D2}:{2:D2}", x / 60 / 60, (x / 60) % 60, x % 60))
             .ToPropertyEx(this, x => x.RunningTimeDisplay);
 
+        // 初始显示"正在加载模型，请稍后"
+        var initialMessage = "正在加载模型，请稍后";
+        
+        // 在应用初始化完成后，更新为欢迎消息
+        var welcomeMessageObservable = Observable.Return(Unit.Default)
+            .Delay(TimeSpan.FromSeconds(2)) // 模拟模型加载时间
+            .Select(_ => {
+                // 当模型加载完成后，返回欢迎消息
+                return "欢迎使用实时字幕和翻译工具，作者WHL";
+            });
+        
         // 实时文本流 - 用于显示
         var textObservable = Observable.FromEventPattern<SpeechEventArgs>(
                 p => _jobManager.TextChanged += p,
                 p => _jobManager.TextChanged -= p)
-            .Select(x => x.EventArgs.Text.Text)
+            .Select(x => x.EventArgs.Text.Text) // 从事件中获取识别到的文本
             .Merge(this.PlayCommand.ThrownExceptions.Select(e => $"启动失败！{e.Message}"))
             .Merge(this.PauseCommand.ThrownExceptions.Select(e => $"暂停失败！{e.Message}"))
             .Merge(this.StopCommand.ThrownExceptions.Select(e => $"停止失败！{e.Message}"))
-            .Merge(Observable.Return("欢迎使用TMSpeech"));
+            .Merge(Observable.Return(initialMessage)) // 初始消息
+            .Merge(welcomeMessageObservable); // 欢迎消息
         
         // 更新UI显示的文本
         textObservable.ToPropertyEx(this, x => x.Text);
@@ -286,6 +301,7 @@ public class MainViewModel : ViewModelBase
                             // 使用Task.Run将翻译操作移到后台线程
                             var result = await Task.Run(() => translator.Translate(text));
                             Trace.WriteLine($"MainViewModel: 翻译完成，结果: {result}");
+                            IsTranslationApiAvailable = true; // 翻译成功，API可用
                             return (textInfo, result);
                         }
                         // 否则使用第一个可用的翻译器
@@ -295,17 +311,20 @@ public class MainViewModel : ViewModelBase
                             Trace.WriteLine($"MainViewModel: 使用第一个可用的翻译器: {translator.Name}");
                             var result = await Task.Run(() => translator.Translate(text));
                             Trace.WriteLine($"MainViewModel: 翻译完成，结果: {result}");
+                            IsTranslationApiAvailable = true; // 翻译成功，API可用
                             return (textInfo, result);
                         }
                     }
                     Trace.WriteLine($"MainViewModel: 没有可用的翻译器，返回空字符串");
-                    return (args.EventArgs.Text, string.Empty);
+                    IsTranslationApiAvailable = false;
+                    return (args.EventArgs.Text, "翻译服务器不可达，翻译功能不可用");
                 }
                 catch (Exception ex)
                 {
                     Trace.WriteLine($"MainViewModel: 翻译失败: {ex.Message}");
                     Console.WriteLine($"翻译失败: {ex.Message}");
-                    return (args.EventArgs.Text, string.Empty);
+                    IsTranslationApiAvailable = false;
+                    return (args.EventArgs.Text, "翻译服务器不可达，翻译功能不可用");
                 }
             })
             .ObserveOn(RxApp.MainThreadScheduler)

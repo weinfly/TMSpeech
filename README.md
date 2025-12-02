@@ -1,5 +1,9 @@
 # TMSpeech
 
+本项目基于TMSppeesh进行修改，主要是添加实时翻译功能，以及添加保存音频文件功能。
+
+
+
 (旧版)视频演示：https://www.bilibili.com/video/BV1rX4y1p7Nx/
 
 关键词：语音转文字，实时字幕，会议语音识别，歌词字幕展示，识别历史记录查看
