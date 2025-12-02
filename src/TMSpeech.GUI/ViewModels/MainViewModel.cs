@@ -126,8 +126,8 @@ public class MainViewModel : ViewModelBase
     [ObservableAsProperty]
     public string Text { get; }
 
-    [ObservableAsProperty]
-    public string TranslatedText { get; }
+    [Reactive]
+    public string TranslatedText { get; set; } = string.Empty;
 
     [Reactive]
     public bool IsLocked { get; set; }
@@ -140,9 +140,6 @@ public class MainViewModel : ViewModelBase
     public ReactiveCommand<Unit, Unit> LockCommand { get; }
 
     private readonly JobManager _jobManager;
-    // 保存最新的翻译结果，用于历史记录
-    private string _latestTranslatedText = string.Empty;
-
     public MainViewModel()
     {
         _jobManager = JobManagerFactory.Instance;
@@ -199,6 +196,7 @@ public class MainViewModel : ViewModelBase
             .Select(x => string.Format("{0:D2}:{1:D2}:{2:D2}", x / 60 / 60, (x / 60) % 60, x % 60))
             .ToPropertyEx(this, x => x.RunningTimeDisplay);
 
+        // 实时文本流 - 用于显示
         var textObservable = Observable.FromEventPattern<SpeechEventArgs>(
                 p => _jobManager.TextChanged += p,
                 p => _jobManager.TextChanged -= p)
@@ -208,15 +206,35 @@ public class MainViewModel : ViewModelBase
             .Merge(this.StopCommand.ThrownExceptions.Select(e => $"停止失败！{e.Message}"))
             .Merge(Observable.Return("欢迎使用TMSpeech"));
         
+        // 更新UI显示的文本
         textObservable.ToPropertyEx(this, x => x.Text);
         
-        // 翻译逻辑 - 异步执行，避免阻塞UI
-        // 调整Throttle时间为100ms，提高翻译响应速度
-        textObservable
-            .Throttle(TimeSpan.FromMilliseconds(100)) // 100ms内只处理一次翻译请求，提高响应速度
-            .DistinctUntilChanged() // 避免重复翻译相同的文本
-            .ObserveOn(RxApp.MainThreadScheduler) // 确保在主线程上处理
-            .SelectMany(async text => {
+        // 使用字典来保存每个TextInfo对象和对应的翻译结果
+        // 键：TextInfo对象的唯一标识符（使用GetHashCode()）
+        // 值：翻译结果
+        var textInfoTranslations = new Dictionary<int, string>();
+        
+        // 保存当前正在显示的TextInfo对象
+        TextInfo? currentDisplayTextInfo = null;
+        
+        // 文本变化事件 - 保存当前TextInfo对象
+        Observable.FromEventPattern<SpeechEventArgs>(
+                p => _jobManager.TextChanged += p,
+                p => _jobManager.TextChanged -= p)
+            .Select(x => x.EventArgs.Text)
+            .Subscribe(x => {
+                currentDisplayTextInfo = x;
+            });
+        
+        // 翻译逻辑 - 直接处理TextChanged事件，实时翻译并保存结果到字典中
+        Observable.FromEventPattern<SpeechEventArgs>(
+                p => _jobManager.TextChanged += p,
+                p => _jobManager.TextChanged -= p)
+            .Throttle(TimeSpan.FromMilliseconds(100)) // 100ms内只处理一次翻译请求
+            .SelectMany(async args => {
+                var textInfo = args.EventArgs.Text;
+                var text = textInfo.Text;
+                
                 Trace.WriteLine($"MainViewModel: 收到文本变化，开始翻译: {text}");
                 try
                 {
@@ -238,8 +256,7 @@ public class MainViewModel : ViewModelBase
                             // 使用Task.Run将翻译操作移到后台线程
                             var result = await Task.Run(() => translator.Translate(text));
                             Trace.WriteLine($"MainViewModel: 翻译完成，结果: {result}");
-                            _latestTranslatedText = result;
-                            return result;
+                            return (textInfo, result);
                         }
                         // 否则使用第一个可用的翻译器
                         else if (pluginManager.Translators.Count > 0)
@@ -248,31 +265,58 @@ public class MainViewModel : ViewModelBase
                             Trace.WriteLine($"MainViewModel: 使用第一个可用的翻译器: {translator.Name}");
                             var result = await Task.Run(() => translator.Translate(text));
                             Trace.WriteLine($"MainViewModel: 翻译完成，结果: {result}");
-                            _latestTranslatedText = result;
-                            return result;
+                            return (textInfo, result);
                         }
                     }
-                    Trace.WriteLine($"MainViewModel: 没有可用的翻译器，返回原始文本");
-                    _latestTranslatedText = text;
-                    return text;
+                    Trace.WriteLine($"MainViewModel: 没有可用的翻译器，返回空字符串");
+                    return (args.EventArgs.Text, string.Empty);
                 }
                 catch (Exception ex)
                 {
                     Trace.WriteLine($"MainViewModel: 翻译失败: {ex.Message}");
                     Console.WriteLine($"翻译失败: {ex.Message}");
-                    _latestTranslatedText = text;
-                    return text;
+                    return (args.EventArgs.Text, string.Empty);
                 }
             })
-            .ToPropertyEx(this, x => x.TranslatedText);
-
+            .ObserveOn(RxApp.MainThreadScheduler)
+            .Subscribe(result => {
+                var (textInfo, translation) = result;
+                
+                // 更新TranslatedText属性
+                TranslatedText = translation;
+                
+                // 将翻译结果保存到字典中
+                textInfoTranslations[textInfo.GetHashCode()] = translation;
+                
+                // 实时更新当前显示的TextInfo的翻译结果
+                if (currentDisplayTextInfo != null)
+                {
+                    currentDisplayTextInfo.TranslatedText = translation;
+                }
+            });
+        
+        // 句子完成事件处理 - 确保翻译结果已经更新到TextInfo对象
         Observable.FromEventPattern<SpeechEventArgs>(
                 p => _jobManager.SentenceDone += p,
                 p => _jobManager.SentenceDone -= p)
             .Select(x => x.EventArgs.Text)
             .Subscribe(x => {
-                // 将最新的翻译结果保存到TextInfo对象中
-                x.TranslatedText = _latestTranslatedText;
+                // 从字典中获取翻译结果
+                if (textInfoTranslations.TryGetValue(x.GetHashCode(), out var translation))
+                {
+                    // 将翻译结果设置到TextInfo对象中
+                    x.TranslatedText = translation;
+                    
+                    // 从字典中移除，释放资源
+                    textInfoTranslations.Remove(x.GetHashCode());
+                }
+                else
+                {
+                    // 如果字典中没有，使用当前的TranslatedText属性值
+                    x.TranslatedText = TranslatedText;
+                }
+                
+                // 添加到历史记录
                 this.HistoryTexts.Add(x);
             });
     }

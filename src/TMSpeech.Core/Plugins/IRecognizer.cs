@@ -19,6 +19,29 @@ namespace TMSpeech.Core.Plugins
         }
         
         /// <summary>
+        /// 重写Equals方法，基于Text内容比较
+        /// </summary>
+        /// <param name="obj">比较对象</param>
+        /// <returns>是否相等</returns>
+        public override bool Equals(object? obj)
+        {
+            if (obj is TextInfo other)
+            {
+                return Text == other.Text;
+            }
+            return false;
+        }
+        
+        /// <summary>
+        /// 重写GetHashCode方法，基于Text内容生成哈希码
+        /// </summary>
+        /// <returns>哈希码</returns>
+        public override int GetHashCode()
+        {
+            return Text.GetHashCode();
+        }
+        
+        /// <summary>
         /// 将文本转换为标准的首字母大写格式
         /// </summary>
         /// <param name="text">输入文本</param>

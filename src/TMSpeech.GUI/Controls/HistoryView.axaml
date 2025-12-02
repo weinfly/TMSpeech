@@ -23,11 +23,13 @@
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="100" /> <!-- 时间列 -->
             <ColumnDefinition Width="*" /> <!-- 英文文本列 -->
+            <ColumnDefinition Width="30" /> <!-- 分隔符列 -->
             <ColumnDefinition Width="*" /> <!-- 翻译文本列 -->
           </Grid.ColumnDefinitions>
           <TextBlock IsHitTestVisible="False" Text="{Binding TimeStr}" Grid.Column="0"></TextBlock>
           <SelectableTextBlock IsHitTestVisible="False" Text="{Binding Text}" TextWrapping="Wrap" Grid.Column="1" Margin="8,0,8,0"></SelectableTextBlock>
-          <SelectableTextBlock IsHitTestVisible="False" Text="{Binding TranslatedText}" TextWrapping="Wrap" Grid.Column="2"></SelectableTextBlock>
+          <TextBlock IsHitTestVisible="False" Text="|" Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Foreground="#888888"></TextBlock>
+          <SelectableTextBlock IsHitTestVisible="False" Text="{Binding TranslatedText}" TextWrapping="Wrap" Grid.Column="3" Margin="8,0,8,0"></SelectableTextBlock>
         </Grid>
       </DataTemplate>
     </ItemsControl.ItemTemplate>

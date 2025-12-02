@@ -202,12 +202,19 @@ public partial class HistoryView : UserControl
             
             // 获取Grid中的SelectableTextBlock元素
             var textblocks = grid.Children.OfType<SelectableTextBlock>().ToList();
-            if (textblocks.Count == 0) continue;
+            if (textblocks.Count < 2) continue;
             
-            // 只获取第一个SelectableTextBlock的内容（英文文本）
-            var textblock = textblocks[0];
-            copyText += textblock.Text.Substring(i == less.Item1 ? less.Item2 : 0,
-                i == greater.Item1 ? greater.Item2 : textblock.Text.Length) + "\n";
+            // 按照时间、英文、分隔符、翻译的格式复制完整内容
+            var timeBlock = grid.Children.OfType<TextBlock>().FirstOrDefault(tb => Grid.GetColumn(tb) == 0);
+            var englishBlock = textblocks[0]; // 英文文本
+            var translateBlock = textblocks[1]; // 翻译文本
+            
+            string timeStr = timeBlock?.Text ?? "";
+            string englishText = englishBlock.Text;
+            string translateText = translateBlock.Text;
+            
+            // 构建完整的复制文本，包括时间、英文、分隔符和翻译
+            copyText += $"{timeStr} {englishText} | {translateText}\n";
         }
 
         var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;

@@ -113,18 +113,29 @@ namespace TMSpeech.Core
 
         private void OnRecognizerOnSentenceDone(object? sender, SpeechEventArgs args)
         {
-            // Save the sentense to log
+            _disableInThisSentence = false;
+            
+            // 调用OnSentenceDone，让MainViewModel有机会更新翻译结果
+            OnSentenceDone(args);
+            
+            // 保存英文原文
             if (logFile != null && logFile.Length > 0)
             {
                 File.AppendAllText(logFile, string.Format("{0:T}: {1}\n", DateTime.Now, args.Text.Text));
+                
+                // 保存翻译结果到单独的文件 - 无论翻译结果是否为空，都保存
+                string translatedLogFile = Path.ChangeExtension(logFile, ".translated.txt");
+                File.AppendAllText(translatedLogFile, string.Format("{0:T}: {1}\n", DateTime.Now, args.Text.TranslatedText ?? string.Empty));
             }
-
-            _disableInThisSentence = false;
-            OnSentenceDone(args);
         }
 
+        // 保存当前识别的文本，用于在停止时保存最后的结果
+        private TextInfo? _currentText = null;
+        
         private void OnRecognizerOnTextChanged(object? sender, SpeechEventArgs args)
         {
+            _currentText = args.Text;
+            
             if (!_disableInThisSentence)
             {
                 var s = _sensitiveWords.FirstOrDefault(x => args.Text.Text.Contains(x));
@@ -233,13 +244,18 @@ namespace TMSpeech.Core
                 return;
             }
 
+            // 保存最后的识别结果到日志
+            if (_currentText != null && !string.IsNullOrEmpty(_currentText.Text))
+            {
+                OnRecognizerOnSentenceDone(this, new SpeechEventArgs() { Text = _currentText });
+            }
+
             _audioSource.DataAvailable -= OnAudioSourceOnDataAvailable;
             _audioSource.ExceptionOccured -= OnPluginRunningExceptionOccurs;
 
             _recognizer.TextChanged -= OnRecognizerOnTextChanged;
             _recognizer.SentenceDone -= OnRecognizerOnSentenceDone;
             _recognizer.ExceptionOccured -= OnPluginRunningExceptionOccurs;
-
 
             _audioSource = null;
             _recognizer = null;
