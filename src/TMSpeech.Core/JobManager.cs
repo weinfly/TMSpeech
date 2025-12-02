@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using NAudio.Wave;
 using TMSpeech.Core.Plugins;
 using TMSpeech.Core.Services.Notification;
 
@@ -66,7 +68,11 @@ namespace TMSpeech.Core
         private IRecognizer? _recognizer;
         private HashSet<string> _sensitiveWords;
         private bool _disableInThisSentence = false;
-        private string logFile;
+        private string logFile = string.Empty;
+        
+        // 音频录制相关
+        private WaveFileWriter? _audioRecorder;
+        private string audioLogFile = string.Empty;
 
         private void InitAudioSource()
         {
@@ -89,6 +95,9 @@ namespace TMSpeech.Core
         {
             // Console.WriteLine(o?.GetHashCode().ToString("x8") ?? "<null>");
             _recognizer?.Feed(data);
+            
+            // 录制音频数据
+            _audioRecorder?.Write(data, 0, data.Length);
         }
 
         private void InitRecognizer()
@@ -191,9 +200,15 @@ namespace TMSpeech.Core
             {
                 Directory.CreateDirectory(logPath);
                 logFile = Path.Combine(logPath, string.Format("{0:yy-MM-dd-HH-mm-ss}.txt", DateTime.Now));
+                
+                // 初始化音频录制文件
+                audioLogFile = Path.ChangeExtension(logFile, ".wav");
+                // 使用16000Hz，1通道，IEEE浮点格式（与LoopbackAudioSource一致）
+                _audioRecorder = new WaveFileWriter(audioLogFile, WaveFormat.CreateIeeeFloatWaveFormat(16000, 1));
             } else
             {
                 logFile = "";
+                audioLogFile = "";
             }
 
             if (Status == JobStatus.Stopped) RunningSeconds = 0;
@@ -248,6 +263,14 @@ namespace TMSpeech.Core
             if (_currentText != null && !string.IsNullOrEmpty(_currentText.Text))
             {
                 OnRecognizerOnSentenceDone(this, new SpeechEventArgs() { Text = _currentText });
+            }
+
+            // 保存并关闭音频录制
+            if (_audioRecorder != null)
+            {
+                _audioRecorder.Flush();
+                _audioRecorder.Dispose();
+                _audioRecorder = null;
             }
 
             _audioSource.DataAvailable -= OnAudioSourceOnDataAvailable;
