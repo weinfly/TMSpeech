@@ -99,38 +99,44 @@ public class CaptionStyleViewModel : ViewModelBase
 }
 
 public class MainViewModel : ViewModelBase
-{
-    [ObservableAsProperty]
-    public JobStatus Status { get; }
+    {
+        [ObservableAsProperty]
+        public JobStatus Status { get; }
 
-    [ObservableAsProperty]
-    public bool PlayButtonVisible { get; }
+        [ObservableAsProperty]
+        public bool PlayButtonVisible { get; }
 
-    [ObservableAsProperty]
-    public bool PauseButtonVisible { get; }
+        [ObservableAsProperty]
+        public bool PauseButtonVisible { get; }
 
-    [ObservableAsProperty]
-    public bool StopButtonVisible { get; }
+        [ObservableAsProperty]
+        public bool StopButtonVisible { get; }
 
-    [ObservableAsProperty]
-    public bool HistroyPanelVisible { get; }
+        [ObservableAsProperty]
+        public bool HistroyPanelVisible { get; }
 
-    [ObservableAsProperty]
-    public long RunningSeconds { get; }
+        [ObservableAsProperty]
+        public long RunningSeconds { get; }
 
-    [ObservableAsProperty]
-    public string RunningTimeDisplay { get; }
+        [ObservableAsProperty]
+        public string RunningTimeDisplay { get; }
 
-    public CaptionStyleViewModel CaptionStyle { get; }
+        public CaptionStyleViewModel CaptionStyle { get; }
 
-    [ObservableAsProperty]
-    public string Text { get; }
+        [ObservableAsProperty]
+        public string Text { get; }
 
-    [Reactive]
-    public string TranslatedText { get; set; } = string.Empty;
+        [Reactive]
+        public string TranslatedText { get; set; } = string.Empty;
 
-    [Reactive]
-    public bool IsLocked { get; set; }
+        [Reactive]
+        public bool IsLocked { get; set; }
+        
+        // 翻译开关相关
+        [Reactive]
+        public bool IsTranslationEnabled { get; set; } = true;
+        
+        public ReactiveCommand<Unit, Unit> ToggleTranslationCommand { get; }
 
     public ObservableCollection<TextInfo> HistoryTexts { get; } = new();
 
@@ -141,51 +147,60 @@ public class MainViewModel : ViewModelBase
 
     private readonly JobManager _jobManager;
     public MainViewModel()
-    {
-        _jobManager = JobManagerFactory.Instance;
-        CaptionStyle = new CaptionStyleViewModel(this);
+        {
+            _jobManager = JobManagerFactory.Instance;
+            CaptionStyle = new CaptionStyleViewModel(this);
 
-        Observable.FromEventPattern<JobStatus>(
-                p => { _jobManager.StatusChanged += p; },
-                p => { _jobManager.StatusChanged -= p; }
-            )
-            .Select(x => x.EventArgs)
-            .Merge(Observable.Return(_jobManager.Status))
-            .ObserveOn(RxApp.MainThreadScheduler)
-            .ToPropertyEx(this, x => x.Status);
+            Observable.FromEventPattern<JobStatus>(
+                    p => { _jobManager.StatusChanged += p; },
+                    p => { _jobManager.StatusChanged -= p; }
+                )
+                .Select(x => x.EventArgs)
+                .Merge(Observable.Return(_jobManager.Status))
+                .ObserveOn(RxApp.MainThreadScheduler)
+                .ToPropertyEx(this, x => x.Status);
 
-        this.WhenAnyValue(x => x.Status) // IObservable<JobStatus>
-            .Select(x => x == JobStatus.Stopped || x == JobStatus.Paused) // IObservable<bool>
-            .ToPropertyEx(this, x => x.PlayButtonVisible);
+            this.WhenAnyValue(x => x.Status) // IObservable<JobStatus>
+                .Select(x => x == JobStatus.Stopped || x == JobStatus.Paused) // IObservable<bool>
+                .ToPropertyEx(this, x => x.PlayButtonVisible);
 
-        this.WhenAnyValue(x => x.Status)
-            .Select(x => x == JobStatus.Running)
-            .ToPropertyEx(this, x => x.PauseButtonVisible);
+            this.WhenAnyValue(x => x.Status)
+                .Select(x => x == JobStatus.Running)
+                .ToPropertyEx(this, x => x.PauseButtonVisible);
 
-        this.WhenAnyValue(x => x.Status)
-            .Select(x => x == JobStatus.Running || x == JobStatus.Paused)
-            .ToPropertyEx(this, x => x.StopButtonVisible);
+            this.WhenAnyValue(x => x.Status)
+                .Select(x => x == JobStatus.Running || x == JobStatus.Paused)
+                .ToPropertyEx(this, x => x.StopButtonVisible);
 
-        this.LockCommand = ReactiveCommand.Create(() => { 
-            IsLocked = true;
-            // Inform user if user uses it for the first time.
-            var lockedShown = ConfigManagerFactory.Instance.Get<bool>(NotificationConfigTypes.HasShownLockUsage);
-            if (!lockedShown)
-            {
-                ConfigManagerFactory.Instance.Apply(NotificationConfigTypes.HasShownLockUsage, true);
-                NotificationManager.Instance.Notify("锁定成功", "右键托盘图标以解锁", NotificationType.Info);
-            }
-        });
+            this.LockCommand = ReactiveCommand.Create(() => { 
+                IsLocked = true;
+                // Inform user if user uses it for the first time.
+                var lockedShown = ConfigManagerFactory.Instance.Get<bool>(NotificationConfigTypes.HasShownLockUsage);
+                if (!lockedShown)
+                {
+                    ConfigManagerFactory.Instance.Apply(NotificationConfigTypes.HasShownLockUsage, true);
+                    NotificationManager.Instance.Notify("锁定成功", "右键托盘图标以解锁", NotificationType.Info);
+                }
+            });
+            
+            // 初始化翻译开关命令
+            this.ToggleTranslationCommand = ReactiveCommand.Create(() => {
+                IsTranslationEnabled = !IsTranslationEnabled;
+                if (!IsTranslationEnabled)
+                {
+                    TranslatedText = string.Empty;
+                }
+            });
 
-        this.PlayCommand = ReactiveCommand.CreateFromTask(
-            async () => { await Task.Run(() => { _jobManager.Start(); }); },
-            this.WhenAnyValue(x => x.PlayButtonVisible));
-        this.PauseCommand = ReactiveCommand.CreateFromTask(
-            async () => { await Task.Run(() => { _jobManager.Pause(); }); },
-            this.WhenAnyValue(x => x.PauseButtonVisible));
-        this.StopCommand = ReactiveCommand.CreateFromTask(
-            async () => { await Task.Run(() => { _jobManager.Stop(); }); },
-            this.WhenAnyValue(x => x.StopButtonVisible));
+            this.PlayCommand = ReactiveCommand.CreateFromTask(
+                async () => { await Task.Run(() => { _jobManager.Start(); }); },
+                this.WhenAnyValue(x => x.PlayButtonVisible));
+            this.PauseCommand = ReactiveCommand.CreateFromTask(
+                async () => { await Task.Run(() => { _jobManager.Pause(); }); },
+                this.WhenAnyValue(x => x.PauseButtonVisible));
+            this.StopCommand = ReactiveCommand.CreateFromTask(
+                async () => { await Task.Run(() => { _jobManager.Stop(); }); },
+                this.WhenAnyValue(x => x.StopButtonVisible));
 
         Observable.FromEventPattern<long>(x => _jobManager.RunningSecondsChanged += x,
                 x => _jobManager.RunningSecondsChanged -= x)
@@ -231,6 +246,7 @@ public class MainViewModel : ViewModelBase
                 p => _jobManager.TextChanged += p,
                 p => _jobManager.TextChanged -= p)
             .Throttle(TimeSpan.FromMilliseconds(100)) // 100ms内只处理一次翻译请求
+            .Where(_ => IsTranslationEnabled) // 只有在启用翻译时才处理
             .SelectMany(async args => {
                 var textInfo = args.EventArgs.Text;
                 var text = textInfo.Text;

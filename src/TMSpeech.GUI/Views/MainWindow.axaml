@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:views="clr-namespace:TMSpeech.GUI.Views"
         xmlns:aconverter="clr-namespace:Avalonia.Markup.Xaml.Converters;assembly=Avalonia.Markup.Xaml"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="TMSpeech.GUI.Views.MainWindow"
         Icon="/Assets/tmspeech.ico"
@@ -88,6 +89,21 @@
       </Button>
       <Button Click="SettingsButton_Click">
         <PathIcon Data="{StaticResource settings_regular}"></PathIcon>
+      </Button>
+      <Button Command="{Binding ToggleTranslationCommand}">
+        <TextBlock>
+          <TextBlock.Styles>
+            <Style Selector="TextBlock">
+              <Setter Property="Text" Value="停止翻译" />
+            </Style>
+            <Style Selector="TextBlock[IsVisible=False]">
+              <Setter Property="Text" Value="启动翻译" />
+            </Style>
+          </TextBlock.Styles>
+          <TextBlock.IsVisible>
+            <Binding Path="IsTranslationEnabled" />
+          </TextBlock.IsVisible>
+        </TextBlock>
       </Button>
     </StackPanel>
     <views:CaptionView Grid.Row="1" Margin="16"
