@@ -1,3 +1,4 @@
 mode: ContinuousDelivery
 tag-prefix: '[vV]?'
 increment: Inherit
+next-version: 0.5.0
