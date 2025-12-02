@@ -14,15 +14,21 @@
     </ItemsControl.ContextMenu>
     <ItemsControl.ItemTemplate>
       <DataTemplate>
-        <DockPanel IsHitTestVisible="True" Background="#01FFFFFF" 
-                   PointerPressed="InputElement_OnPointerPressed"
-                   PointerReleased="InputElement_OnPointerReleased"
-                   Cursor="IBeam"
-                   Margin="8,4"
-                   PointerMoved="InputElement_OnPointerMoved">
-          <TextBlock IsHitTestVisible="False" Text="{Binding TimeStr}" Width="100"></TextBlock>
-          <SelectableTextBlock IsHitTestVisible="False" Text="{Binding Text}" TextWrapping="Wrap"></SelectableTextBlock>
-        </DockPanel>
+        <Grid IsHitTestVisible="True" Background="#01FFFFFF" 
+              PointerPressed="InputElement_OnPointerPressed"
+              PointerReleased="InputElement_OnPointerReleased"
+              Cursor="IBeam"
+              Margin="8,4"
+              PointerMoved="InputElement_OnPointerMoved">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="100" /> <!-- 时间列 -->
+            <ColumnDefinition Width="*" /> <!-- 英文文本列 -->
+            <ColumnDefinition Width="*" /> <!-- 翻译文本列 -->
+          </Grid.ColumnDefinitions>
+          <TextBlock IsHitTestVisible="False" Text="{Binding TimeStr}" Grid.Column="0"></TextBlock>
+          <SelectableTextBlock IsHitTestVisible="False" Text="{Binding Text}" TextWrapping="Wrap" Grid.Column="1" Margin="8,0,8,0"></SelectableTextBlock>
+          <SelectableTextBlock IsHitTestVisible="False" Text="{Binding TranslatedText}" TextWrapping="Wrap" Grid.Column="2"></SelectableTextBlock>
+        </Grid>
       </DataTemplate>
     </ItemsControl.ItemTemplate>
   </ItemsControl>

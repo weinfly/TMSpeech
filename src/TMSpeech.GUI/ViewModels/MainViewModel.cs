@@ -140,6 +140,8 @@ public class MainViewModel : ViewModelBase
     public ReactiveCommand<Unit, Unit> LockCommand { get; }
 
     private readonly JobManager _jobManager;
+    // 保存最新的翻译结果，用于历史记录
+    private string _latestTranslatedText = string.Empty;
 
     public MainViewModel()
     {
@@ -236,6 +238,7 @@ public class MainViewModel : ViewModelBase
                             // 使用Task.Run将翻译操作移到后台线程
                             var result = await Task.Run(() => translator.Translate(text));
                             Trace.WriteLine($"MainViewModel: 翻译完成，结果: {result}");
+                            _latestTranslatedText = result;
                             return result;
                         }
                         // 否则使用第一个可用的翻译器
@@ -245,16 +248,19 @@ public class MainViewModel : ViewModelBase
                             Trace.WriteLine($"MainViewModel: 使用第一个可用的翻译器: {translator.Name}");
                             var result = await Task.Run(() => translator.Translate(text));
                             Trace.WriteLine($"MainViewModel: 翻译完成，结果: {result}");
+                            _latestTranslatedText = result;
                             return result;
                         }
                     }
                     Trace.WriteLine($"MainViewModel: 没有可用的翻译器，返回原始文本");
+                    _latestTranslatedText = text;
                     return text;
                 }
                 catch (Exception ex)
                 {
                     Trace.WriteLine($"MainViewModel: 翻译失败: {ex.Message}");
                     Console.WriteLine($"翻译失败: {ex.Message}");
+                    _latestTranslatedText = text;
                     return text;
                 }
             })
@@ -264,6 +270,10 @@ public class MainViewModel : ViewModelBase
                 p => _jobManager.SentenceDone += p,
                 p => _jobManager.SentenceDone -= p)
             .Select(x => x.EventArgs.Text)
-            .Subscribe(x => { this.HistoryTexts.Add(x); });
+            .Subscribe(x => {
+                // 将最新的翻译结果保存到TextInfo对象中
+                x.TranslatedText = _latestTranslatedText;
+                this.HistoryTexts.Add(x);
+            });
     }
 }

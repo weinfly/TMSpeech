@@ -35,16 +35,50 @@ public partial class HistoryView : UserControl
 
     private (int, int) GetIndexFromPointerEvent(PointerEventArgs e)
     {
-        var hitTestControl = list.InputHitTest(e.GetPosition(list));
-        if (hitTestControl is not DockPanel dockPanel) return (-1, 0);
-        if (dockPanel.Children[1] is not SelectableTextBlock textblock) return (-1, 0);
-        var parent = dockPanel.GetVisualParent();
+        var hitTestPoint = e.GetPosition(list);
+        var hitTestControl = list.InputHitTest(hitTestPoint);
+        
+        // 转换为Visual类型
+        Visual? visualControl = hitTestControl as Visual;
+        if (visualControl == null) return (-1, 0);
+        
+        // 查找父级Grid
+        var grid = FindParentGrid(visualControl);
+        if (grid == null) return (-1, 0);
+        
+        // 查找点击的SelectableTextBlock
+        SelectableTextBlock? textblock = null;
+        foreach (var child in grid.Children)
+        {
+            if (child is SelectableTextBlock tb)
+            {
+                // 检查点击位置是否在SelectableTextBlock内
+                var tbPos = e.GetPosition(tb);
+                var tbBounds = tb.Bounds;
+                if (tbPos.X >= 0 && tbPos.X <= tbBounds.Width && tbPos.Y >= 0 && tbPos.Y <= tbBounds.Height)
+                {
+                    textblock = tb;
+                    break;
+                }
+            }
+        }
+        
+        if (textblock == null) return (-1, 0);
+        
+        var parent = grid.GetVisualParent();
         if (parent is not Control parentControl) return (-1, 0);
         var index = list.IndexFromContainer(parentControl);
         var pos = e.GetPosition(textblock);
         var element = textblock.TextLayout.HitTestPoint(pos);
         var charIndex = element.TextPosition;
         return (index, charIndex);
+    }
+    
+    private Grid? FindParentGrid(Visual? visual)
+    {
+        if (visual == null) return null;
+        if (visual is Grid grid) return grid;
+        return FindParentGrid(visual.GetVisualParent());
     }
 
     private ((int, int), (int, int)) GetLessAndGreater()
@@ -89,10 +123,14 @@ public partial class HistoryView : UserControl
             for (int i = 0; i < list.ItemCount; i++)
             {
                 if (list.ContainerFromIndex(i) is not ContentPresenter cp) continue;
-                if (cp.Child is not DockPanel dockPanel) continue;
-                if (dockPanel.Children[1] is not SelectableTextBlock textblock) continue;
-                textblock.SelectionStart = 0;
-                textblock.SelectionEnd = 0;
+                if (cp.Child is not Grid grid) continue;
+                
+                // 遍历Grid中的所有SelectableTextBlock，清除选择
+                foreach (var child in grid.Children.OfType<SelectableTextBlock>())
+                {
+                    child.SelectionStart = 0;
+                    child.SelectionEnd = 0;
+                }
             }
 
             return;
@@ -103,20 +141,25 @@ public partial class HistoryView : UserControl
         for (var i = 0; i < list.ItemCount; i++)
         {
             if (list.ContainerFromIndex(i) is not ContentPresenter cp) continue;
-            if (cp.Child is not DockPanel dockPanel) continue;
-            if (dockPanel.Children[1] is not SelectableTextBlock textblock) continue;
-
-            if (i < less.Item1 || i > greater.Item1)
+            if (cp.Child is not Grid grid) continue;
+            
+            // 遍历Grid中的所有SelectableTextBlock
+            foreach (var textblock in grid.Children.OfType<SelectableTextBlock>())
             {
-                textblock.SelectionStart = 0;
-                textblock.SelectionEnd = 0;
-                continue;
-            }
+                if (i < less.Item1 || i > greater.Item1)
+                {
+                    // 不在选择范围内，清除选择
+                    textblock.SelectionStart = 0;
+                    textblock.SelectionEnd = 0;
+                    continue;
+                }
 
-            var start = i == less.Item1 ? less.Item2 : 0;
-            var end = i == greater.Item1 ? greater.Item2 : textblock.Text.Length;
-            textblock.SelectionStart = start;
-            textblock.SelectionEnd = end;
+                // 在选择范围内，设置选择范围
+                var start = i == less.Item1 ? less.Item2 : 0;
+                var end = i == greater.Item1 ? greater.Item2 : textblock.Text.Length;
+                textblock.SelectionStart = start;
+                textblock.SelectionEnd = end;
+            }
         }
     }
 
@@ -155,8 +198,14 @@ public partial class HistoryView : UserControl
         for (int i = less.Item1; i <= greater.Item1; i++)
         {
             if (list.ContainerFromIndex(i) is not ContentPresenter cp) continue;
-            if (cp.Child is not DockPanel dockPanel) continue;
-            if (dockPanel.Children[1] is not SelectableTextBlock textblock) continue;
+            if (cp.Child is not Grid grid) continue;
+            
+            // 获取Grid中的SelectableTextBlock元素
+            var textblocks = grid.Children.OfType<SelectableTextBlock>().ToList();
+            if (textblocks.Count == 0) continue;
+            
+            // 只获取第一个SelectableTextBlock的内容（英文文本）
+            var textblock = textblocks[0];
             copyText += textblock.Text.Substring(i == less.Item1 ? less.Item2 : 0,
                 i == greater.Item1 ? greater.Item2 : textblock.Text.Length) + "\n";
         }
