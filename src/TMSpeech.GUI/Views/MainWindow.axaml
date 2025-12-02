@@ -90,7 +90,7 @@
       <Button Click="SettingsButton_Click">
         <PathIcon Data="{StaticResource settings_regular}"></PathIcon>
       </Button>
-      <Button Command="{Binding ToggleTranslationCommand}">
+      <Button Command="{Binding ToggleTranslationCommand}" IsEnabled="{Binding IsTranslationButtonEnabled}">
         <StackPanel Orientation="Horizontal">
           <TextBlock Text="停止翻译" IsVisible="{Binding IsTranslationEnabled}" />
           <TextBlock Text="启用翻译" IsVisible="{Binding !IsTranslationEnabled}" />

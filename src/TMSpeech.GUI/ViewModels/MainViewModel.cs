@@ -136,6 +136,9 @@ public class MainViewModel : ViewModelBase
         [Reactive]
         public bool IsTranslationEnabled { get; set; } = false;
         
+        [ObservableAsProperty]
+        public bool IsTranslationButtonEnabled { get; }
+        
         public ReactiveCommand<Unit, Unit> ToggleTranslationCommand { get; }
 
     public ObservableCollection<TextInfo> HistoryTexts { get; } = new();
@@ -159,6 +162,11 @@ public class MainViewModel : ViewModelBase
                 .Merge(Observable.Return(_jobManager.Status))
                 .ObserveOn(RxApp.MainThreadScheduler)
                 .ToPropertyEx(this, x => x.Status);
+            
+            // 绑定翻译按钮可用性：只有在实时字幕运行或暂停时才能使用翻译按钮
+            this.WhenAnyValue(x => x.Status)
+                .Select(status => status == JobStatus.Running || status == JobStatus.Paused)
+                .ToPropertyEx(this, x => x.IsTranslationButtonEnabled);
 
             this.WhenAnyValue(x => x.Status) // IObservable<JobStatus>
                 .Select(x => x == JobStatus.Stopped || x == JobStatus.Paused) // IObservable<bool>
@@ -193,17 +201,20 @@ public class MainViewModel : ViewModelBase
             });
 
             this.PlayCommand = ReactiveCommand.CreateFromTask(
-                async () => { 
-                    await Task.Run(() => { _jobManager.Start(); }); 
-                    IsTranslationEnabled = true; // 启动实时字幕时自动启用翻译
-                },
-                this.WhenAnyValue(x => x.PlayButtonVisible));
-            this.PauseCommand = ReactiveCommand.CreateFromTask(
-                async () => { await Task.Run(() => { _jobManager.Pause(); }); },
-                this.WhenAnyValue(x => x.PauseButtonVisible));
-            this.StopCommand = ReactiveCommand.CreateFromTask(
-                async () => { await Task.Run(() => { _jobManager.Stop(); }); },
-                this.WhenAnyValue(x => x.StopButtonVisible));
+            async () => { 
+                await Task.Run(() => { _jobManager.Start(); }); 
+                IsTranslationEnabled = true; // 启动实时字幕时自动启用翻译
+            },
+            this.WhenAnyValue(x => x.PlayButtonVisible));
+        this.PauseCommand = ReactiveCommand.CreateFromTask(
+            async () => { await Task.Run(() => { _jobManager.Pause(); }); },
+            this.WhenAnyValue(x => x.PauseButtonVisible));
+        this.StopCommand = ReactiveCommand.CreateFromTask(
+            async () => { 
+                await Task.Run(() => { _jobManager.Stop(); }); 
+                IsTranslationEnabled = false; // 停止实时字幕后自动禁用翻译
+            },
+            this.WhenAnyValue(x => x.StopButtonVisible));
 
         Observable.FromEventPattern<long>(x => _jobManager.RunningSecondsChanged += x,
                 x => _jobManager.RunningSecondsChanged -= x)
