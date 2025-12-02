@@ -91,19 +91,10 @@
         <PathIcon Data="{StaticResource settings_regular}"></PathIcon>
       </Button>
       <Button Command="{Binding ToggleTranslationCommand}">
-        <TextBlock>
-          <TextBlock.Styles>
-            <Style Selector="TextBlock">
-              <Setter Property="Text" Value="停止翻译" />
-            </Style>
-            <Style Selector="TextBlock[IsVisible=False]">
-              <Setter Property="Text" Value="启动翻译" />
-            </Style>
-          </TextBlock.Styles>
-          <TextBlock.IsVisible>
-            <Binding Path="IsTranslationEnabled" />
-          </TextBlock.IsVisible>
-        </TextBlock>
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="停止翻译" IsVisible="{Binding IsTranslationEnabled}" />
+          <TextBlock Text="启用翻译" IsVisible="{Binding !IsTranslationEnabled}" />
+        </StackPanel>
       </Button>
     </StackPanel>
     <views:CaptionView Grid.Row="1" Margin="16"

@@ -134,7 +134,7 @@ public class MainViewModel : ViewModelBase
         
         // 翻译开关相关
         [Reactive]
-        public bool IsTranslationEnabled { get; set; } = true;
+        public bool IsTranslationEnabled { get; set; } = false;
         
         public ReactiveCommand<Unit, Unit> ToggleTranslationCommand { get; }
 
@@ -193,7 +193,10 @@ public class MainViewModel : ViewModelBase
             });
 
             this.PlayCommand = ReactiveCommand.CreateFromTask(
-                async () => { await Task.Run(() => { _jobManager.Start(); }); },
+                async () => { 
+                    await Task.Run(() => { _jobManager.Start(); }); 
+                    IsTranslationEnabled = true; // 启动实时字幕时自动启用翻译
+                },
                 this.WhenAnyValue(x => x.PlayButtonVisible));
             this.PauseCommand = ReactiveCommand.CreateFromTask(
                 async () => { await Task.Run(() => { _jobManager.Pause(); }); },
