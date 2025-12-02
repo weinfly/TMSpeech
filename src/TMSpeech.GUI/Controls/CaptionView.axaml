@@ -37,6 +37,14 @@
                  TextAlignment="{Binding #root.TextAlign}"
                  Text="{Binding #root.Text}">
       </TextBlock>
+      <TextBlock
+                 Foreground="{Binding #root.FontColor,Converter={StaticResource ColorToBrushConverter}}"
+                 FontSize="{Binding #root.FontSize}"
+                 FontFamily="{Binding #root.FontFamily}"
+                 TextAlignment="{Binding #root.TextAlign}"
+                 Text="{Binding #root.TranslatedText}"
+                 Opacity="0.8">
+      </TextBlock>
     </StackPanel>
   </Canvas>
 </UserControl>

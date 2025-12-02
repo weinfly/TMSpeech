@@ -69,4 +69,13 @@ public partial class CaptionView : UserControl
         get => GetValue(TextProperty);
         set => SetValue(TextProperty, value);
     }
+
+    public static readonly StyledProperty<string> TranslatedTextProperty = AvaloniaProperty.Register<CaptionView, string>(
+        "TranslatedText");
+
+    public string TranslatedText
+    {
+        get => GetValue(TranslatedTextProperty);
+        set => SetValue(TranslatedTextProperty, value);
+    }
 }

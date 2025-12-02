@@ -1,0 +1,11 @@
+{
+  "id": "TMSpeech.Translator.OpenAI",
+  "version": 1,
+  "desc": "使用OpenAI API进行实时翻译",
+  "displayVersion": "0.1",
+  "name": "OpenAI 翻译器",
+  "apiLevel": 1,
+  "assemblies": [
+    "TMSpeech.Translator.OpenAI.dll"
+  ]
+}

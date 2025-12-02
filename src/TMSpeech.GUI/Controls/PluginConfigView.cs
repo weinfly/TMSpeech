@@ -56,7 +56,10 @@ public class PluginConfigView : UserControl
 
     private void UpdateValueAndNotify()
     {
-        Value = ConfigEditor.GenerateConfig();
+        if (ConfigEditor != null)
+        {
+            Value = ConfigEditor.GenerateConfig();
+        }
     }
 
     private void LoadValuesToView()
@@ -89,80 +92,95 @@ public class PluginConfigView : UserControl
     {
         _container.Children.Clear();
         if (ConfigEditor == null) return;
-        foreach (var formItem in ConfigEditor.GetFormItems())
+        try
         {
-            var label = new Label()
+            var formItems = ConfigEditor.GetFormItems();
+            if (formItems == null) return;
+            
+            foreach (var formItem in formItems)
             {
-                Content = formItem.Name,
-            };
-            _container.Children.Add(label);
-            Control control;
-            if (formItem is PluginConfigFormItemText)
-            {
-                var tb = new TextBox()
+                var label = new Label()
                 {
-                    Tag = formItem.Key
+                    Content = formItem.Name,
                 };
-                tb.TextChanged += (_, _) =>
+                _container.Children.Add(label);
+                Control control;
+                if (formItem is PluginConfigFormItemText)
                 {
-                    if (_updateMode != UpdateMode.ViewToBoth) return;
+                    var tb = new TextBox()
+                    {
+                        Tag = formItem.Key
+                    };
+                    tb.TextChanged += (_, _) =>
+                    {
+                        if (_updateMode != UpdateMode.ViewToBoth || ConfigEditor == null) return;
 
-                    ConfigEditor.SetValue(formItem.Key, tb.Text);
-                    UpdateValueAndNotify();
-                };
-                control = tb;
-            }
-            else if (formItem is PluginConfigFormItemFile fileFormItem)
-            {
-                var fp = new FilePicker()
+                        ConfigEditor.SetValue(formItem.Key, tb.Text);
+                        UpdateValueAndNotify();
+                    };
+                    control = tb;
+                }
+                else if (formItem is PluginConfigFormItemFile fileFormItem)
                 {
-                    Tag = fileFormItem.Key,
-                    Type = fileFormItem.Type == PluginConfigFormItemFileType.File
-                        ? FilePickerType.File
-                        : FilePickerType.Folder,
-                };
-                fp.FileChanged += (_, _) =>
+                    var fp = new FilePicker()
+                    {
+                        Tag = fileFormItem.Key,
+                        Type = fileFormItem.Type == PluginConfigFormItemFileType.File
+                            ? FilePickerType.File
+                            : FilePickerType.Folder,
+                    };
+                    fp.FileChanged += (_, _) =>
+                    {
+                        if (_updateMode != UpdateMode.ViewToBoth || ConfigEditor == null) return;
+                        
+                        ConfigEditor.SetValue(formItem.Key, fp.Text);
+                        UpdateValueAndNotify();
+                    };
+                    control = fp;
+                }
+                else if (formItem is PluginConfigFormItemOption optionFormItem)
                 {
-                    if (_updateMode != UpdateMode.ViewToBoth) return;
-                    
-                    ConfigEditor.SetValue(formItem.Key, fp.Text);
-                    UpdateValueAndNotify();
-                };
-                control = fp;
-            }
-            else if (formItem is PluginConfigFormItemOption optionFormItem)
-            {
-                var cb = new ComboBox()
-                {
-                    Tag = optionFormItem.Key,
-                    ItemsSource = optionFormItem.Options.ToList(),
-                    SelectedValueBinding = new Binding("Key"),
-                    ItemTemplate = new FuncDataTemplate<KeyValuePair<object, string>>((v, namescope) => new TextBlock()
-                        {
-                            [!TextBlock.TextProperty] = new Binding("Value"),
-                        }
-                    )
-                };
+                    var cb = new ComboBox()
+                    {
+                        Tag = optionFormItem.Key,
+                        ItemsSource = optionFormItem.Options.ToList(),
+                        SelectedValueBinding = new Binding("Key"),
+                        ItemTemplate = new FuncDataTemplate<KeyValuePair<object, string>>((v, namescope) => new TextBlock()
+                            {
+                                [!TextBlock.TextProperty] = new Binding("Value"),
+                            }
+                        )
+                    };
 
-                cb.SelectionChanged += (_, _) =>
+                    cb.SelectionChanged += (_, _) =>
+                    {
+                        if (_updateMode != UpdateMode.ViewToBoth || ConfigEditor == null) return;
+                        
+                        ConfigEditor.SetValue(formItem.Key, optionFormItem.Options.Keys.ToList()[cb.SelectedIndex]);
+                        UpdateValueAndNotify();
+                    };
+                    control = cb;
+                }
+                else
                 {
-                    if (_updateMode != UpdateMode.ViewToBoth) return;
-                    
-                    ConfigEditor.SetValue(formItem.Key, optionFormItem.Options.Keys.ToList()[cb.SelectedIndex]);
-                    UpdateValueAndNotify();
-                };
-                control = cb;
-            }
-            else
-            {
-                control = new Label()
-                {
-                    Content = "Not supported",
-                    Foreground = Brushes.Red,
-                };
-            }
+                    control = new Label()
+                    {
+                        Content = "Not supported",
+                        Foreground = Brushes.Red,
+                    };
+                }
 
-            _container.Children.Add(control);
+                _container.Children.Add(control);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to generate controls: {ex.Message}");
+            _container.Children.Add(new Label()
+            {
+                Content = "Failed to generate configuration controls",
+                Foreground = Brushes.Red,
+            });
         }
     }
 
@@ -171,27 +189,41 @@ public class PluginConfigView : UserControl
         base.OnPropertyChanged(change);
         if (change.Property == ConfigEditorProperty)
         {
-            if (change.OldValue is IPluginConfigEditor oldConfig)
+            try
             {
-                oldConfig.ValueUpdated -= OnPluginLayerConfigValueUpdated;
-                oldConfig.FormItemsUpdated -= OnPluginLayerConfigFormItemsUpdated;
-            }
+                if (change.OldValue is IPluginConfigEditor oldConfig)
+                {
+                    oldConfig.ValueUpdated -= OnPluginLayerConfigValueUpdated;
+                    oldConfig.FormItemsUpdated -= OnPluginLayerConfigFormItemsUpdated;
+                }
 
-            GenerateControls();
-            if (change.NewValue is IPluginConfigEditor newConfig)
+                GenerateControls();
+                if (change.NewValue is IPluginConfigEditor newConfig)
+                {
+                    OnPluginLayerConfigValueUpdated(this, null);
+                    newConfig.ValueUpdated += OnPluginLayerConfigValueUpdated;
+                    newConfig.FormItemsUpdated += OnPluginLayerConfigFormItemsUpdated;
+                }
+            }
+            catch (Exception ex)
             {
-                OnPluginLayerConfigValueUpdated(this, null);
-                newConfig.ValueUpdated += OnPluginLayerConfigValueUpdated;
-                newConfig.FormItemsUpdated += OnPluginLayerConfigFormItemsUpdated;
+                Console.WriteLine($"Error handling ConfigEditor change: {ex.Message}");
             }
         }
         else if (change.Property == ValueProperty)
         {
-            if (_updateMode != UpdateMode.ViewToBoth) return;
-            _updateMode = UpdateMode.ValueToViewToPluginLayer;
-            ConfigEditor?.LoadConfigString(change.GetNewValue<string>());
-            LoadValuesToView();
-            _updateMode = UpdateMode.ViewToBoth;
+            try
+            {
+                if (_updateMode != UpdateMode.ViewToBoth) return;
+                _updateMode = UpdateMode.ValueToViewToPluginLayer;
+                ConfigEditor?.LoadConfigString(change.GetNewValue<string>());
+                LoadValuesToView();
+                _updateMode = UpdateMode.ViewToBoth;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error handling Value change: {ex.Message}");
+            }
         }
     }
 
@@ -210,7 +242,7 @@ public class PluginConfigView : UserControl
 
     private void OnPluginLayerConfigValueUpdated(object? sender, EventArgs e)
     {
-        if (_updateMode != UpdateMode.ViewToBoth) return;
+        if (_updateMode != UpdateMode.ViewToBoth || ConfigEditor == null) return;
         _updateMode = UpdateMode.PluginLayerToViewToValue;
         UpdateValueAndNotify();
         LoadValuesToView();
